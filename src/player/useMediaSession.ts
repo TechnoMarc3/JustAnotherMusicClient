@@ -28,6 +28,11 @@ function getNativeMediaControlEvent(): string | null {
   return null;
 }
 
+function getRaycastMediaControlEvent(): string | null {
+  if (isTauri()) return "raycast-command";
+  return null;
+}
+
 function getBrowserPlaybackState(status: PlayerState["status"]): MediaSessionPlaybackState {
   if (status === "playing" || status === "loading") return "playing";
   if (status === "paused") return "paused";
@@ -46,6 +51,7 @@ export function useMediaSession(
 ): void {
   const nativeMediaCommand = useMemo(getNativeMediaCommand, []);
   const nativeMediaControlEvent = useMemo(getNativeMediaControlEvent, []);
+  const raycastMediaControlEvent = useMemo(getRaycastMediaControlEvent, []);
   const sendNativeMediaUpdate = useCallback((context: string, forceMetadata = false) => {
     if (!nativeMediaCommand) return;
 
@@ -69,28 +75,63 @@ export function useMediaSession(
   }, [controller, nativeMediaCommand, state.currentTrack, state.status]);
 
   useEffect(() => {
-    if (!nativeMediaControlEvent) return;
+    if (!nativeMediaControlEvent && !raycastMediaControlEvent) return;
 
-    const unlistenPromise = listen<NativeMediaAction>(
-      nativeMediaControlEvent,
-      ({ payload }) => {
-        if (typeof payload === "object") {
-          if (payload.action === "seekTo") void controller.seekTo(payload.positionSec);
-          return;
-        }
+    let isMounted = true;
+    const unlistenFns: Array<() => void> = [];
 
-        if (payload === "play") void controller.play();
-        if (payload === "pause") void controller.pause();
-        if (payload === "playPause") void controller.togglePlayPause();
-        if (payload === "next") void controller.skipToNext();
-        if (payload === "previous") void controller.skipToPrevious();
-      },
-    );
+    const handleMediaAction = (payload: NativeMediaAction) => {
+      if (typeof payload === "object" && payload !== null) {
+        if (payload.action === "seekTo") void controller.seekTo(payload.positionSec);
+        return;
+      }
+
+      switch (payload) {
+        case "play":
+          void controller.play();
+          break;
+        case "pause":
+          void controller.pause();
+          break;
+        case "playPause":
+          void controller.togglePlayPause();
+          break;
+        case "next":
+          void controller.skipToNext();
+          break;
+        case "previous":
+          void controller.skipToPrevious();
+          break;
+      }
+    };
+
+    const setupListeners = async () => {
+      if (nativeMediaControlEvent) {
+        const unlistenNative = await listen<NativeMediaAction>(
+          nativeMediaControlEvent,
+          ({ payload }) => handleMediaAction(payload),
+        );
+        if (isMounted) unlistenFns.push(unlistenNative);
+        else unlistenNative();
+      }
+
+      if (raycastMediaControlEvent) {
+        const unlistenRaycast = await listen<NativeMediaAction>(
+          raycastMediaControlEvent,
+          ({ payload }) => handleMediaAction(payload),
+        );
+        if (isMounted) unlistenFns.push(unlistenRaycast);
+        else unlistenRaycast();
+      }
+    };
+
+    void setupListeners();
 
     return () => {
-      void unlistenPromise.then((unlisten) => unlisten());
+      isMounted = false;
+      unlistenFns.forEach((unlisten) => unlisten());
     };
-  }, [controller, nativeMediaControlEvent]);
+  }, [controller, nativeMediaControlEvent, raycastMediaControlEvent]);
 
   useEffect(() => {
     if (!nativeMediaCommand) return;

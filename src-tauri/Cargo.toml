@@ -34,7 +34,9 @@ discord-rich-presence = "0.2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
+tiny_http = "0.12"
 md5 = "0.8.0"
+urlencoding = "2.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 aes-gcm = "0.10"

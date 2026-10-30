@@ -47,6 +47,7 @@ mod macos_media;
 mod windows_media;
 
 mod discord_rpc;
+mod raycast;
 mod lastfm;
 
 // Keep the legacy service name so existing sign-in credentials survive the product rename.
@@ -3252,6 +3253,24 @@ async fn proxy_http_request(
     })
 }
 
+fn start_raycast_api(
+     raycast_manager: std::sync::Arc<std::sync::Mutex<raycast::RaycastManager>>,
+    handle: tauri::AppHandle
+) -> Result<(), CommandError> {
+     match raycast_manager.lock() {
+        Ok(manager) => {
+            if let Err(e) = manager.start_raycast_api(handle) {
+                eprintln!("[internal][raycast_api] failed to start api server: {}", e);
+                // Don't return error - Discord might not be running
+            }
+        }
+        Err(e) => {
+            eprintln!("[internal][raycast_api] failed to lock manager: {}", e);
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn discord_rpc_update(
     discord_manager: tauri::State<
@@ -3322,6 +3341,9 @@ pub fn run() {
     let discord_manager =
         std::sync::Arc::new(std::sync::Mutex::new(discord_rpc::DiscordRpcManager::new()));
 
+    let raycast_manager = std::sync::Arc::new(std::sync::Mutex::new(raycast::RaycastManager::new()));
+    let pending_requests = raycast_manager.lock().unwrap().pending_requests.clone();
+
     #[allow(unused_mut)]
     let mut context = tauri::generate_context!();
     #[cfg(target_os = "linux")]
@@ -3338,6 +3360,8 @@ pub fn run() {
         .manage(AppSettingsLock(Mutex::new(())))
         .manage(YoutubeCookieJar(Mutex::new(CookieJarState::default())))
         .manage(discord_manager)
+        .manage(pending_requests)
+        .manage(raycast_manager.clone())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -3365,6 +3389,9 @@ pub fn run() {
         .setup(|app| {
             if let Err(error) = initialize_app_log(app.handle()) {
                 std::eprintln!("[internal][tauri][warn] {}", error.message);
+            }
+            if let Err(error) =  start_raycast_api(raycast_manager, app.handle().clone()){
+                std::eprintln!("[internal][raycast][warn] {}", error.message);
             }
 
             let tray_menu = MenuBuilder::new(app)
@@ -3444,8 +3471,6 @@ pub fn run() {
                         let _ = app.emit("main-window-backgrounded", ());
                     });
                 }
-               system_username_get,
-            custom_theme_css_import,
          }
             tauri::WindowEvent::Focused(true) => {
                 if window.label() == "main" {
@@ -3457,6 +3482,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             quit_app,
             frontend_log,
+            system_username_get,
+            custom_theme_css_import,
             app_setting_get,
             app_setting_set,
             app_setting_remove,
@@ -3494,6 +3521,7 @@ pub fn run() {
             lastfm::lastfm_update_now_playing,
             discord_rpc_update,
             discord_rpc_clear,
+            raycast::respond_raycast_request,
             #[cfg(target_os = "macos")]
             macos_media::update_macos_media_session,
             #[cfg(target_os = "windows")]

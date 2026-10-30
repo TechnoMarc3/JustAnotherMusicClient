@@ -21,6 +21,7 @@ import type { Tab, TabViewState } from "./types/tab";
 import {
   libraryController,
   playerController,
+  PlayerControllerActions,
   searchController,
   tabManager,
   useLibraryState,
@@ -82,6 +83,7 @@ import { useLastFmScrobblingEnabled } from "./settings/lastfm";
 import { persistMainWindowGeometry } from "./settings/mainWindowGeometry";
 import { hydratePlaybackSettings } from "../player/playbackSettings";
 import { appErrorManager } from "./errors/errorManager";
+import { SearchController } from "../player/SearchController";
 const restoredSession = loadAppSession();
 const LOADING_SCREEN_FADE_MS = 80;
 const LOADING_SCREEN_MAX_MS = 4000;
@@ -213,6 +215,48 @@ async function hasStoredYoutubeSession(): Promise<boolean> {
     credentials.status === "fulfilled" && credentials.value !== null
     || cookie.status === "fulfilled" && cookie.value !== null
   );
+}
+
+export function useRaycastRequestHandler(
+  searchController: SearchController,
+  playerController: PlayerControllerActions,
+  getRecommendations: () => Track[]
+) {
+  useEffect(() => {
+    const unlistenPromise = listen<{
+      requestId: string;
+      command: "recommendations" | "search" | "playTrack";
+      data: any;
+    }>("raycast-request", async (event) => {
+      const { requestId, command, data } = event.payload;
+      let resultData: any = [];
+
+      try {
+        if (command === "recommendations") {
+          resultData = getRecommendations();
+        } else if (command === "search") {
+          resultData = await searchController.searchTracks(data.query);
+        } else if (command === "playTrack") {
+          if (data.trackId) {
+            await playerController.playTrackById(data.trackId, [], true);
+          }
+          resultData = { status: "ok" };
+        }
+      } catch (err) {
+        console.error("[Raycast] Error handling request:", err);
+      }
+
+      // Sende das Ergebnis als JSON-String zurück an Rust
+      await invoke("respond_raycast_request", {
+        requestId,
+        payload: JSON.stringify(resultData),
+      });
+    });
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [searchController, playerController, getRecommendations]);
 }
 
 export default function App() {
@@ -500,6 +544,11 @@ export default function App() {
   );
 
   useMediaSession(playerState, playerController);
+  useRaycastRequestHandler(searchController, playerController, () => {
+    const activePlayer = tabManager.getActivePlayer();
+    if (!activePlayer) return [];
+    return [];
+  });
 
   useEffect(() => {
     if (!lastFmScrobblingEnabled || !playerState.currentTrack) {

@@ -14,7 +14,7 @@ export default function ExpandedPlayerBar({ isOpen, onClose }: ExpandedPlayerBar
       {/* 2. Mini Player Content (Visible only when closed) */}
       {!isOpen && (
         <div className={styles.miniPlayerContent}>
-          <span>🎵 Now Playing: Song Title</span>
+          <span>Now Playing: Song Title</span>
           <span className={styles.tapHint}>Tap to expand</span>
         </div>
       )}
