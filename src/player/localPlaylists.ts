@@ -355,7 +355,7 @@ function localTrackId(path: string): string {
 }
 
 export function isLocalPlaylist(playlist: Playlist): boolean {
-  return playlist.kind === "local" || playlist.id.startsWith(LOCAL_PLAYLIST_PREFIX);
+  return playlist.id == undefined ? false : (playlist.kind === "local" || playlist.id.startsWith(LOCAL_PLAYLIST_PREFIX));
 }
 
 function getLocalPlaylistTrackItemId(playlistId: string, track: Track): string {

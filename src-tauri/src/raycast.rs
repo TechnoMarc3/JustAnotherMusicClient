@@ -96,6 +96,58 @@ impl RaycastManager {
                             .with_header(h_json.clone());
                         let _ = request.respond(res);
                     }
+
+                    (&Method::Get, "/api/playlist") => {
+                        let mut body = String::new();
+                        let _ = request.as_reader().read_to_string(&mut body);
+                        let body_json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+
+                        let json_res = await_react_response(
+                            &app_handle,
+                            &pending,
+                            "getPlaylist",
+                            body_json,
+                        );
+                        let res = Response::from_string(json_res)
+                            .with_header(h_origin.clone())
+                            .with_header(h_json.clone());
+                        let _ = request.respond(res);
+                    }
+                    (&Method::Post, "/api/playlist/reorder") => {
+                        let mut body = String::new();
+                        let _ = request.as_reader().read_to_string(&mut body);
+                        let body_json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+                        println!("Received reorderPlaylist request with body: {}", body_json);
+                        let json_res = await_react_response(
+                            &app_handle,
+                            &pending,
+                            "reorderPlaylist",
+                            body_json,
+                        );
+                        let res = Response::from_string(json_res)
+                            .with_header(h_origin.clone())
+                            .with_header(h_json.clone());
+                        let _ = request.respond(res);
+                    }
+
+
+                    (&Method::Post, "/api/play-playlist") => {
+                        let mut body = String::new();
+                        let _ = request.as_reader().read_to_string(&mut body);
+                        let body_json: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+
+                        let json_res = await_react_response(
+                            &app_handle,
+                            &pending,
+                            "playPlaylist",
+                            body_json,
+                        );
+                        let res = Response::from_string(json_res)
+                            .with_header(h_origin.clone())
+                            .with_header(h_json.clone());
+                        let _ = request.respond(res);
+                    }
+
                     (&Method::Post, "/api/pause-resume") => {
                         let _ = app_handle.emit("raycast-command", "playPause");
                         let res = Response::from_string(r#"{"status":"ok"}"#)

@@ -225,7 +225,7 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <div className={styles.trackList}>
                 {manualQueue.map((track, index) => (
                   <div
-                    key={`${track.id}:${upcomingStartIndex + index}`}
+                    key={track.id ?? `${track.id}-${index}`}
                     data-queue-index={upcomingStartIndex + index}
                     data-queue-section="manual"
                     className={getTrackItemClassName(upcomingStartIndex + index)}
@@ -278,7 +278,7 @@ export function QueuePanel({ isOpen, onClose }: QueuePanelProps) {
               <div className={styles.trackList}>
                 {autoQueue.map((track, index) => (
                   <div
-                    key={`${track.id}:${upcomingStartIndex + manualQueueLength + index}`}
+                    key={track.id ?? `${track.id}-${index}`}
                     data-queue-index={upcomingStartIndex + manualQueueLength + index}
                     data-queue-section="automatic"
                     className={getTrackItemClassName(

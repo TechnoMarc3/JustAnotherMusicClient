@@ -84,6 +84,7 @@ import { persistMainWindowGeometry } from "./settings/mainWindowGeometry";
 import { hydratePlaybackSettings } from "../player/playbackSettings";
 import { appErrorManager } from "./errors/errorManager";
 import { SearchController } from "../player/SearchController";
+import { LibraryState } from "../player/LibraryController";
 const restoredSession = loadAppSession();
 const LOADING_SCREEN_FADE_MS = 80;
 const LOADING_SCREEN_MAX_MS = 4000;
@@ -220,8 +221,31 @@ async function hasStoredYoutubeSession(): Promise<boolean> {
 export function useRaycastRequestHandler(
   searchController: SearchController,
   playerController: PlayerControllerActions,
+  libraryState: LibraryState,
   getRecommendations: () => Track[]
 ) {
+   const matchTitle = <T extends Album | Playlist>(items: T[], query: string) => {
+      const normalizedQuery = query.toLocaleLowerCase();
+      const matches = items.filter((item) =>
+        item.title.toLocaleLowerCase().includes(normalizedQuery)
+      );
+      return matches.find(
+        (item) => item.title.toLocaleLowerCase() === normalizedQuery
+      ) ?? matches ?? null;
+    };
+    const handlePlayPlaylist = async (playlist: Playlist) => {
+      try {
+        const result = await libraryController.getPlaylistTrackPage(playlist);  
+      result?.tracks?.[0] && await playerController.playTrackById(result.tracks[0].id, result.tracks, true);
+      } catch (error) {
+        console.error("Error playing playlist:", error);
+      }
+    };
+     const ensureArray = <T extends any>(item?: T | T[]): T[] => {
+  if (!item) return [];
+  return Array.isArray(item) ? item : [item];
+};
+    
   useEffect(() => {
     const unlistenPromise = listen<{
       requestId: string;
@@ -235,11 +259,40 @@ export function useRaycastRequestHandler(
         if (command === "recommendations") {
           resultData = getRecommendations();
         } else if (command === "search") {
-          resultData = await searchController.searchTracks(data.query);
+         const query = data.query || "";
+        const searchResults = (await searchController.search(query)) as SearchResults;
+        const matchedPlaylists = matchTitle(libraryState.library?.playlists || [], query) || [];
+
+        resultData = {
+          ...searchResults,
+          playlists: [
+            ...ensureArray(matchedPlaylists),
+            ...ensureArray(searchResults.playlists),
+          ],
+        };
         } else if (command === "playTrack") {
           if (data.trackId) {
             await playerController.playTrackById(data.trackId, [], true);
           }
+          resultData = { status: "ok" };
+        }
+        else if (command === "playPlaylist") {
+          console.log("playPlaylist command received with data:", data);
+          if (data.id) {
+           //open playlist in new tab and play first track
+           const playlist = data as Playlist;
+            handlePlayPlaylist(playlist);
+          }
+          resultData = { status: "ok" };
+        }
+        else if (command === "getPlaylist") {
+          const currentIndex =  playerController.getPlayerSession()?.queueIndex ?? -1
+         resultData = {"queue": playerController.getPlayerSession().queue.splice(currentIndex+1, playerController.getPlayerSession().queue.length - currentIndex)};
+        }
+        else if (command === "reorderPlaylist") {
+          console.log(`Reordering track from index ${data.fromIndex} to index ${data.toIndex}`);
+          const currentIndex =  playerController.getPlayerSession()?.queueIndex ?? -1;
+          playerController.moveQueueTrack(data.fromIndex + currentIndex +1, data.toIndex + currentIndex +1, data.toIndex > data.fromIndex);
           resultData = { status: "ok" };
         }
       } catch (err) {
@@ -543,8 +596,17 @@ export default function App() {
     [activeTabId],
   );
 
+  const handleNavigatePlaylist = (playlist: Playlist) => {
+    playerUIStore.setLyricsOpen(false);
+    navigateTab(activeTabId, {
+      title: activeTab?.title,
+      view: "playlist",
+      playlist,
+    });
+  };
+
   useMediaSession(playerState, playerController);
-  useRaycastRequestHandler(searchController, playerController, () => {
+  useRaycastRequestHandler(searchController, playerController, libraryState,() => {
     const activePlayer = tabManager.getActivePlayer();
     if (!activePlayer) return [];
     return [];
@@ -844,15 +906,6 @@ export default function App() {
 
   const handleConnectionRestored = async () => {
     await libraryController.recoverConnection();
-  };
-
-  const handleNavigatePlaylist = (playlist: Playlist) => {
-    playerUIStore.setLyricsOpen(false);
-    navigateTab(activeTabId, {
-      title: activeTab?.title,
-      view: "playlist",
-      playlist,
-    });
   };
 
   const createTab = () => {
