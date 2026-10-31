@@ -22,7 +22,6 @@
   background: var(--color-bg-elevated);
   padding: 2px 6px;
   border-radius: 4px;
-  transition: opacity 150ms ease;
   pointer-events: none;
 }
 
@@ -73,7 +72,6 @@
   border-radius: 50%;
   cursor: pointer;
   margin-top: -5.5px;
-  transition: transform 140ms ease;
 }
 
 .seekSlider::-moz-range-progress {
@@ -89,7 +87,6 @@
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 140ms ease;
 }
 
 .seekSlider:hover::-webkit-slider-thumb {

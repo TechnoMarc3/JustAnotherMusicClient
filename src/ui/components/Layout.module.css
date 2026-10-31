@@ -56,7 +56,6 @@
   background: #fff;
   box-shadow: 0 0 4px rgb(255 255 255 / 55%);
   opacity: var(--twinkle-min);
-  animation: twinkle var(--twinkle-duration) var(--twinkle-delay) ease-in-out infinite alternate;
 }
 
 .shootingStar {
@@ -82,9 +81,6 @@
   transform: rotate(-45deg);
   transform-origin: left center;
   will-change: transform;
-  animation:
-    shootStar var(--shoot-duration) var(--shoot-delay) linear infinite,
-    starPulse var(--pulse-duration) ease-in-out infinite alternate;
 }
 
 .shootingStar::after {
@@ -101,7 +97,6 @@
     0 0 12px rgb(255 255 255 / 88%),
     0 0 24px rgb(255 255 255 / 42%);
   transform: translateY(-50%);
-  animation: headPulse 2.8s ease-in-out infinite;
 }
 
 .mainContent {

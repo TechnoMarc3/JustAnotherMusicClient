@@ -124,7 +124,7 @@ body,
     0 0 5px rgb(77 255 119 / 58%),
     0 -6px 13px rgb(77 255 119 / 18%);
   white-space: pre;
-  animation: matrixRain calc(var(--theme-rain-duration, 9s) * var(--matrix-rain-duration-scale, 1)) linear infinite;
+  /*animation: matrixRain calc(var(--theme-rain-duration, 9s) * var(--matrix-rain-duration-scale, 1)) linear infinite;*/
   animation-delay: var(--theme-rain-delay, -4s);
 }
 

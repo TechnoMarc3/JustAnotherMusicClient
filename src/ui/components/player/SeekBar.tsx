@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { usePlayerState } from "../../../player/playerStore";
 import { playerController } from "../../../player/playerStore";
 import { playerUIStore, usePlayerUIState } from "../../stores/playerUIStore";
 import styles from "./SeekBar.module.css";
 
-const PLAYING_REFRESH_MS = 250;
+const PLAYING_REFRESH_MS = 500;
 const PAUSED_REFRESH_MS = 1000;
 const TIME_UPDATE_EPSILON_SEC = 0.05;
 const DURATION_UPDATE_EPSILON_SEC = 0.25;
@@ -19,29 +19,55 @@ function formatTime(seconds: number): string {
 export function SeekBar() {
   const state = usePlayerState();
   const uiState = usePlayerUIState();
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+
+  const currentTimeElRef = useRef<HTMLSpanElement>(null);
+  const durationElRef = useRef<HTMLSpanElement>(null);
+  const sliderRef = useRef<HTMLInputElement>(null);
+
   const seekTargetRef = useRef(0);
   const seekAnimationRef = useRef<number | null>(null);
   const seekAnimationDoneRef = useRef<(() => void) | null>(null);
   const seekAnimationPromiseRef = useRef<Promise<void> | null>(null);
   const pendingSeekRef = useRef<{ target: number; startedAt: number } | null>(null);
+  
   const displayedTimeRef = useRef(0);
   const durationRef = useRef(0);
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const isPointerDownRef = useRef(false);
   const isDraggingRef = useRef(false);
 
+  const updateSliderUI = (time: number, dur: number) => {
+    if (currentTimeElRef.current) {
+      currentTimeElRef.current.textContent = formatTime(time);
+    }
+    if (durationElRef.current) {
+      durationElRef.current.textContent = formatTime(dur);
+    }
+    if (sliderRef.current) {
+      // Während des Ziehens nicht den value überschreiben, um Ruckeln zu vermeiden
+      if (!isDraggingRef.current && !isPointerDownRef.current) {
+        sliderRef.current.value = time.toString();
+      }
+      sliderRef.current.max = (dur || 100).toString();
+      const percent = dur > 0 ? (time / dur) * 100 : 0;
+      sliderRef.current.style.setProperty("--slider-progress", `${percent}%`);
+    }
+  };
+
   const setDisplayedTime = (time: number) => {
-    if (Math.abs(displayedTimeRef.current - time) < TIME_UPDATE_EPSILON_SEC) return;
+    if (Math.abs(displayedTimeRef.current - time) < TIME_UPDATE_EPSILON_SEC && displayedTimeRef.current !== 0) {
+      return;
+    }
     displayedTimeRef.current = time;
-    setCurrentTime(time);
+    updateSliderUI(time, durationRef.current);
   };
 
   const setDisplayedDuration = (nextDuration: number) => {
-    if (Math.abs(durationRef.current - nextDuration) < DURATION_UPDATE_EPSILON_SEC) return;
+    if (Math.abs(durationRef.current - nextDuration) < DURATION_UPDATE_EPSILON_SEC && durationRef.current !== 0) {
+      return;
+    }
     durationRef.current = nextDuration;
-    setDuration(nextDuration);
+    updateSliderUI(displayedTimeRef.current, nextDuration);
   };
 
   const cancelSeekAnimation = () => {
@@ -63,6 +89,7 @@ export function SeekBar() {
       seekAnimationDoneRef.current = resolve;
     });
     seekAnimationPromiseRef.current = done;
+
     const animate = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / 120);
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -98,9 +125,9 @@ export function SeekBar() {
         const engineTime = playerController.getCurrentTime();
         const pendingSeek = pendingSeekRef.current;
         if (
-          pendingSeek
-          && performance.now() - pendingSeek.startedAt < 750
-          && Math.abs(engineTime - pendingSeek.target) > 0.75
+          pendingSeek &&
+          performance.now() - pendingSeek.startedAt < 750 &&
+          Math.abs(engineTime - pendingSeek.target) > 0.75
         ) {
           setDisplayedTime(pendingSeek.target);
         } else {
@@ -133,7 +160,7 @@ export function SeekBar() {
 
     const distance = Math.hypot(
       event.clientX - pointerStartRef.current.x,
-      event.clientY - pointerStartRef.current.y,
+      event.clientY - pointerStartRef.current.y
     );
     if (distance < 3) return;
 
@@ -194,13 +221,16 @@ export function SeekBar() {
 
   return (
     <div className={styles.seekBar}>
-      <span className={styles.timeDisplay}>{formatTime(currentTime)}</span>
+      <span ref={currentTimeElRef} className={styles.timeDisplay}>
+        0:00
+      </span>
       <input
+        ref={sliderRef}
         type="range"
         min="0"
-        max={duration || 100}
+        max="100"
         step="any"
-        value={currentTime}
+        defaultValue={0}
         onChange={handleSeekChange}
         onKeyUp={commitKeyboardSeek}
         onPointerDown={handleSeekStart}
@@ -209,12 +239,11 @@ export function SeekBar() {
         onPointerCancel={handleSeekCancel}
         disabled={isDisabled}
         className={styles.seekSlider}
-        style={{
-          "--slider-progress": `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-        } as React.CSSProperties}
         aria-label="Seek"
       />
-      <span className={styles.timeDisplay}>{formatTime(duration)}</span>
+      <span ref={durationElRef} className={styles.timeDisplay}>
+        0:00
+      </span>
     </div>
   );
 }
